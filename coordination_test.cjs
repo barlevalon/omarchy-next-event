@@ -7,6 +7,10 @@ const { id } = JSON.parse(fs.readFileSync(`${__dirname}/manifest.json`, 'utf8'))
 let members = [];
 let clock = Date.parse('2026-10-13T09:45:00Z');
 const commands = [];
+const deferred = [];
+function flushDeferred() { while (deferred.length) deferred.shift()(); }
+const ownerChange = source.match(/  onUpdateOwnerChanged: ({[^]*?\n  })/)[1];
+const timerTrigger = source.match(/id: notificationTimer[^]*?onTriggered: ([^\n]+)/)[1];
 const Clock = class extends Date { static now() { return clock; } };
 function widget() {
   const process = { running: false };
@@ -17,11 +21,18 @@ function widget() {
     status: 'loading', errorText: '', eventData: null, eventsData: [],
     notified: {}, refreshPending: false,
     fetchProcess: process,
-    notificationTimer: { stop() {}, start() {} },
+    notificationTimer: {
+      running: false, deadline: Infinity,
+      stop() { this.running = false; },
+      start() { this.running = true; this.deadline = clock + this.interval; },
+    },
     notificationCommand: 'synthetic-notify',
     privacyMode: true,
     eventTitle() { return 'Private event'; },
-    Qt: { formatTime(date) { return date.toISOString().slice(11, 16); } },
+    Qt: {
+      formatTime(date) { return date.toISOString().slice(11, 16); },
+      callLater(callback) { deferred.push(callback); },
+    },
     Quickshell: { execDetached(command) { commands.push(Array.from(command)); } },
     bar: { moduleWidgets(requestedId) { assert.equal(requestedId, id); return members; } },
   };
@@ -40,6 +51,13 @@ function widget() {
     get() { return state.mounted && state.peerWidgets()[0] === state; },
   });
   Object.defineProperty(context, 'updateOwner', { get() { return state.updateOwner; } });
+  state.ownerChanged = () => vm.runInContext(ownerChange, context);
+  state.fireReminderTimer = () => {
+    if (state.notificationTimer.running && clock >= state.notificationTimer.deadline) {
+      state.notificationTimer.running = false;
+      vm.runInContext(timerTrigger, context);
+    }
+  };
   return state;
 }
 const first = widget();
@@ -75,22 +93,27 @@ assert.equal(third.notified, first.notified);
 third.checkNotifications();
 assert.equal(commands.length, 2);
 
-// Remove the owner: the next live widget takes over with existing history.
+// Remove the owner immediately before start; leave replacement fetching pending.
+clock = Date.parse('2026-10-13T09:59:59Z');
 first.mounted = false;
 members = [first, second, third];
 assert.equal(first.updateOwner, false);
 assert.equal(second.updateOwner, true);
 first.distributeResult(JSON.stringify({ status: 'error' }));
 assert.equal(second.status, 'ok', 'Retired-owner output must not overwrite current state');
-second.refresh();
+first.ownerChanged();
+second.ownerChanged();
+flushDeferred();
 assert.equal(second.fetchProcess.running, true);
 assert.equal(third.fetchProcess.running, false);
+assert.equal(second.notificationTimer.running, true,
+  'Promotion must resume cached reminder scheduling before replacement fetching finishes');
+assert.equal(second.notificationTimer.deadline, Date.parse('2026-10-13T10:00:00Z'));
 clock = Date.parse('2026-10-13T10:00:00Z');
-second.checkNotifications();
-third.checkNotifications();
-first.checkNotifications();
-assert.equal(commands.length, 4, 'One start-reminder per event after owner removal');
-second.checkNotifications();
+for (const item of [first, second, third]) item.fireReminderTimer();
+assert.equal(commands.length, 4, 'Cached start-reminders arrive while replacement fetch remains pending');
+assert.equal(second.fetchProcess.running, true);
+for (const item of [first, second, third]) item.fireReminderTimer();
 assert.equal(commands.length, 4);
 second.distributeResult(JSON.stringify({ status: 'error', error: 'Synthetic unavailable' }));
 assert.equal(third.status, 'error');
@@ -100,5 +123,11 @@ assert.equal(third.eventsData.length, 0);
 assert.ok(source.includes('running: root.updateOwner'));
 assert.ok(source.includes('onStreamFinished: root.distributeResult(text)'));
 assert.ok(source.includes('Component.onDestruction: mounted = false'));
-assert.ok(source.includes('if (root.updateOwner) root.refresh()'));
+// Deferred startup must discard ownership lost before its callback runs.
+second.fetchProcess.running = false;
+second.ownerChanged();
+second.mounted = false;
+flushDeferred();
+assert.equal(second.fetchProcess.running, false);
+assert.equal(third.fetchProcess.running, false);
 console.log('ok: shared fetching, per-event reminders, late monitor, owner removal, stale-output rejection');

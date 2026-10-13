@@ -31,7 +31,11 @@ BarWidget {
   }
   Component.onDestruction: mounted = false
   onUpdateOwnerChanged: {
-    if (updateOwner) Qt.callLater(function() { if (root.updateOwner) root.refresh() })
+    if (updateOwner) Qt.callLater(function() {
+      if (!root.updateOwner) return
+      root.checkNotifications()
+      root.refresh()
+    })
     else {
       notificationTimer.stop()
       if (fetchProcess.running) fetchProcess.running = false
