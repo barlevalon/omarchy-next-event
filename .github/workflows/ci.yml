@@ -23,3 +23,4 @@ jobs:
           /usr/bin/python3 test_feed_config.py
           node privacy_test.cjs
           node feed_settings_test.cjs
+          node coordination_test.cjs

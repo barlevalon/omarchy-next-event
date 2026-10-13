@@ -2,14 +2,14 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "alon.next-event"
+  moduleName: "io.github.barlevalon.next-event"
 
-  readonly property string configDir: Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config"
-  readonly property string pluginDir: configDir + "/omarchy/plugins/alon.next-event"
+  readonly property string pluginDir: decodeURIComponent(String(Qt.resolvedUrl("."))).replace(/^file:\/\//, "").replace(/\/$/, "")
   readonly property string notificationCommand: Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-notification-send"
   property var eventData: null
   property var eventsData: []
@@ -20,8 +20,23 @@ BarWidget {
   property string status: "loading"
   property string errorText: ""
   property bool refreshPending: false
+  property bool mounted: false
+  readonly property bool updateOwner: mounted && peerWidgets()[0] === root
   readonly property bool privacyMode: setting("privacyMode", true) !== false
   readonly property string privacyHint: "Right-click: turn privacy " + (privacyMode ? "off" : "on") + "\nMiddle-click: calendar feeds"
+
+  Component.onCompleted: {
+    mounted = true
+    Qt.callLater(syncFromOwner)
+  }
+  Component.onDestruction: mounted = false
+  onUpdateOwnerChanged: {
+    if (updateOwner) Qt.callLater(function() { if (root.updateOwner) root.refresh() })
+    else {
+      notificationTimer.stop()
+      if (fetchProcess.running) fetchProcess.running = false
+    }
+  }
 
   onPrivacyModeChanged: if (bar) bar.hideTooltip(button)
 
@@ -45,8 +60,9 @@ BarWidget {
     var end = new Date(eventData.end).getTime()
     var primaryKey = eventKey(eventData)
     var events = eventsData.length ? eventsData : [eventData]
-    return events.filter(function(event) {
-      if (eventKey(event) === primaryKey) return true
+    var primaryIndex = events.findIndex(function(event) { return eventKey(event) === primaryKey })
+    return events.filter(function(event, index) {
+      if (index === primaryIndex) return true
       var otherStart = new Date(event.start).getTime()
       var otherEnd = new Date(event.end).getTime()
       return start < end && otherStart < otherEnd && otherStart < end && start < otherEnd
@@ -113,7 +129,38 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  function peerWidgets() {
+    var peers = bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(moduleName) : []
+    peers = peers.filter(function(widget) { return widget && widget.mounted })
+    return peers.length ? peers : [root]
+  }
+
+  function syncFromOwner() {
+    var owner = peerWidgets()[0]
+    if (owner === root) return
+    notified = owner.notified
+    status = owner.status
+    errorText = owner.errorText
+    eventData = owner.eventData
+    eventsData = owner.eventsData
+  }
+
+  function distributeResult(output) {
+    if (!updateOwner) return
+    var peers = peerWidgets()
+    for (var i = 0; i < peers.length; i++) {
+      peers[i].notified = notified
+      peers[i].applyResult(output)
+    }
+  }
+
   function refresh() {
+    if (!mounted) return
+    var owner = peerWidgets()[0]
+    if (owner !== root) {
+      owner.refresh()
+      return
+    }
     if (fetchProcess.running) {
       refreshPending = true
     } else if (pluginDir !== "") {
@@ -156,6 +203,7 @@ BarWidget {
 
   function checkNotifications() {
     notificationTimer.stop()
+    if (!updateOwner) return
     var now = Date.now()
     var nextAt = Infinity
 
@@ -196,11 +244,10 @@ BarWidget {
     id: fetchProcess
     command: [root.pluginDir + "/next_event.py"]
     onExited: function(exitCode) {
-      if (exitCode !== 0) {
-        root.status = "error"
-        root.errorText = "Calendar refresh failed"
+      if (exitCode !== 0 && root.updateOwner) {
+        root.distributeResult(JSON.stringify({ status: "error", error: "Calendar refresh failed" }))
       }
-      if (root.refreshPending) Qt.callLater(function() {
+      if (root.refreshPending && root.updateOwner) Qt.callLater(function() {
         root.refreshPending = false
         root.refresh()
       })
@@ -208,7 +255,7 @@ BarWidget {
 
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.applyResult(text)
+      onStreamFinished: root.distributeResult(text)
     }
   }
 
@@ -224,9 +271,8 @@ BarWidget {
 
   Timer {
     interval: 300000
-    running: true
+    running: root.updateOwner
     repeat: true
-    triggeredOnStart: true
     onTriggered: root.refresh()
   }
 
@@ -236,8 +282,8 @@ BarWidget {
     bar: root.bar
     owner: root
     pluginDir: root.pluginDir
-    onSaved: root.broadcast("refresh")
-    onRefreshRequested: root.broadcast("refresh")
+    onSaved: root.refresh()
+    onRefreshRequested: root.refresh()
   }
 
   PopupCard {
@@ -264,7 +310,7 @@ BarWidget {
         Text {
           textFormat: Text.PlainText
           text: "Overlapping events"
-          color: Color.foreground
+          color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.subtitle
           font.bold: true
@@ -273,7 +319,7 @@ BarWidget {
         Text {
           textFormat: Text.PlainText
           text: "Choose an event, then join." + (root.privacyMode ? " Titles hidden." : "")
-          color: Color.foreground
+          color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall
           width: parent.width
@@ -328,7 +374,7 @@ BarWidget {
                 Text {
                   textFormat: Text.PlainText
                   text: root.eventChoiceTitle(eventRow.modelData, eventRow.index)
-                  color: eventRow.selected ? Color.accent : Color.foreground
+                  color: eventRow.selected ? Commons.Color.accent : Commons.Color.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.body
                   font.bold: eventRow.selected
@@ -339,7 +385,7 @@ BarWidget {
                 Text {
                   textFormat: Text.PlainText
                   text: root.eventTiming(eventRow.modelData) + (eventRow.modelData.meetingUrl ? "" : " · no meeting link")
-                  color: Color.foreground
+                  color: Commons.Color.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.bodySmall
                   width: parent.width

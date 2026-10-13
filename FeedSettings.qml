@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 KeyboardPanel {
@@ -183,7 +184,7 @@ KeyboardPanel {
         Text {
           textFormat: Text.PlainText
           text: "Calendar feeds"
-          color: Color.foreground
+          color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.subtitle
           font.bold: true
@@ -192,7 +193,7 @@ KeyboardPanel {
         Text {
           textFormat: Text.PlainText
           text: "Read-only ICS subscription links. Secret links grant calendar read access; treat them as passwords. Saved locally with owner-only permissions."
-          color: Color.foreground
+          color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall
           width: parent.width
@@ -211,7 +212,7 @@ KeyboardPanel {
           visible: root.helpVisible
           textFormat: Text.PlainText
           text: "Google Calendar (web): Settings · choose calendar · Integrate calendar · copy Secret address in iCal format.\n\nOutlook (web): Settings · Calendar · Shared calendars · Publish a calendar · choose permissions · copy the ICS link. Publishing exposes selected details to anyone with that link.\n\nWorkplace policies may disable these options. Paste a subscription link, not an HTML page or downloaded .ics file."
-          color: Color.foreground
+          color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall
           width: parent.width
@@ -235,7 +236,7 @@ KeyboardPanel {
             Text {
               textFormat: Text.PlainText
               text: "Feed " + (feedRow.index + 1)
-              color: Color.foreground
+              color: Commons.Color.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.bodySmall
             }
@@ -274,7 +275,7 @@ KeyboardPanel {
               textFormat: Text.PlainText
               text: feedRow.feedback
               visible: text !== ""
-              color: feedRow.connected ? Color.accent : Color.urgent
+              color: feedRow.connected ? Commons.Color.accent : Commons.Color.urgent
               font.family: Style.font.family
               font.pixelSize: Style.font.bodySmall
               width: parent.width
@@ -327,7 +328,7 @@ KeyboardPanel {
           textFormat: Text.PlainText
           text: root.message
           visible: text !== ""
-          color: Color.foreground
+          color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall
           width: parent.width

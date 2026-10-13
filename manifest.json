@@ -1,10 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "alon.next-event",
-  "name": "Next event",
+  "id": "io.github.barlevalon.next-event",
+  "name": "Next Event",
   "version": "1.0.0",
   "author": "Alon",
-  "description": "Privacy-first next meeting widget with overlap selection and secure ICS feed settings",
+  "license": "MIT",
+  "description": "A lightweight meeting companion for Omarchy: see what’s next, get reminders, and join from the bar.",
   "kinds": [
     "bar-widget"
   ],
@@ -12,8 +13,8 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Next event",
-    "description": "Privacy-first meetings, overlap selection, and ICS feed settings",
+    "displayName": "Next Event",
+    "description": "Your next meeting, right in your Omarchy bar",
     "category": "Info",
     "allowMultiple": false,
     "defaultSection": "center"

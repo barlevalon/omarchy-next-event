@@ -8,7 +8,7 @@ Productivity
 
 ### Tags
 
-bar, quickshell
+Bar, Quickshell
 
 ### Suggest a missing tag
 
@@ -16,9 +16,17 @@ _No response_
 
 ### Maintainer notes
 
-I built a small privacy-first next-meeting widget rather than a full calendar.
-It reads HTTPS ICS subscriptions, masks titles by default, offers explicit
-overlap selection, and provides masked feed settings with connection testing.
+I built Next Event as a lightweight meeting companion for the Omarchy bar,
+not another full calendar. It brings upcoming meetings from multiple calendars
+within reach, gives timely reminders, and opens Google Meet, Teams, or Zoom
+without hunting through tabs. Privacy is an easily toggled mode: right-click
+to hide event titles. An explicit picker keeps overlapping meetings accessible.
+
+The permanent ID is `io.github.barlevalon.next-event`, renamed from the early
+`alon.next-event` ID before marketplace listing. Please review the identifier
+change on this existing submission rather than creating a second listing.
+The preview is composed from native captures with fictional meetings and feeds;
+no private calendar data is included.
 
 Manual setup is required: install the official Arch packages
 `python-icalendar` and `python-recurring-ical-events` before enabling the

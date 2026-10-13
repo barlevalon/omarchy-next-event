@@ -1,9 +1,28 @@
-// Run with: node ~/.config/omarchy/plugins/alon.next-event/privacy_test.cjs
+// Run with: node privacy_test.cjs
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(`${__dirname}/BarWidget.qml`, 'utf8');
+const manifest = JSON.parse(fs.readFileSync(`${__dirname}/manifest.json`, 'utf8'));
+assert.equal(manifest.id, 'io.github.barlevalon.next-event');
+const readme = fs.readFileSync(`${__dirname}/README.md`, 'utf8');
+assert.ok(readme.includes(`omarchy plugin update ${manifest.id}`));
+assert.ok(readme.includes(`omarchy plugin remove ${manifest.id}`));
+assert.equal(source.match(/  moduleName: "([^"]+)"/)[1], manifest.id);
+const pluginDir = source.match(/readonly property string pluginDir: ([^\n]+)/)[1];
+const helperContext = vm.createContext({
+  String, decodeURIComponent,
+  Qt: { resolvedUrl: () => 'file:///home/test%20user/.config/omarchy/plugins/' + manifest.id + '/' },
+});
+assert.equal(vm.runInContext(pluginDir, helperContext),
+  '/home/test user/.config/omarchy/plugins/' + manifest.id);
+assert.ok(!pluginDir.includes('XDG_CONFIG_HOME'), 'Code location must follow QML source, not feed-data storage');
+for (const file of ['BarWidget.qml', 'FeedSettings.qml']) {
+  const qml = fs.readFileSync(`${__dirname}/${file}`, 'utf8');
+  assert.ok(qml.includes('import qs.Commons as Commons'));
+  assert.ok(!/(?<!Commons\.)\bColor\./.test(qml), 'Palette must not collide with QtQuick.Color');
+}
 const event = {
   title: 'Confidential acquisition review',
   start: '2026-08-29T15:00:00Z',
@@ -18,8 +37,9 @@ let refreshed = 0;
 const context = vm.createContext({
   Date, Object,
   settings: { existingSetting: 42 },
-  moduleName: 'alon.next-event',
+  moduleName: manifest.id,
   status: 'ok', errorText: '', eventData: event, eventsData: [],
+  mounted: true, updateOwner: true,
   popupOpen: false, selectedKey: '', notified: {},
   notificationTimer: { stop() {}, start() {} },
   notificationCommand: 'omarchy-notification-send',
@@ -88,7 +108,7 @@ assert.ok(commands.at(-1).includes('Event starting now'));
 context.settings = { existingSetting: 42, privacyMode: true };
 render();
 click(2);
-assert.equal(saved.id, 'alon.next-event');
+assert.equal(saved.id, manifest.id);
 assert.equal(saved.value.privacyMode, false);
 assert.equal(saved.value.existingSetting, 42);
 context.settings = saved.value;
@@ -187,6 +207,10 @@ for (const other of [at('Adjacent after', '15:30', '16:00'), at('Adjacent before
 }
 setEvents([at('Instant primary', '15:00', '15:00'), event]);
 assert.equal(context.overlapEvents.length, 1);
+const instant = at('Same instantaneous event', '15:00', '15:00');
+output = setEvents([instant, { ...instant }]);
+assert.equal(context.overlapEvents.length, 1, 'Identical zero-duration events must not create overlaps');
+assert.ok(!output[0].includes('overlap'));
 setEvents([event, at('Partial', '15:10', '15:40'), at('Not a direct conflict', '15:35', '16:00')]);
 assert.equal(context.overlapEvents.length, 2);
 output = setEvents([event, second, { ...second, title: 'Third' }]);
@@ -241,5 +265,5 @@ assert.equal(context.feedSettings.shown, shownBeforeSetup + 1, 'Setup opens the 
 const savedRefresh = source.match(/onSaved: ([^\n]+)/)[1];
 const refreshBeforeSave = refreshed;
 vm.runInContext(savedRefresh, context);
-assert.equal(refreshed, refreshBeforeSave + 1, 'Save must broadcast refresh to every monitor');
+assert.equal(refreshed, refreshBeforeSave + 1, 'Save must request one shared refresh for every monitor');
 console.log('ok: privacy, overlap detection, picker selection, join, reminders, setup access, exclusive panels, shared refresh');
