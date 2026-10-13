@@ -220,7 +220,9 @@ omarchy plugin validate .
 Tests use synthetic data and temporary configurations, never real calendar
 feeds. Keep development virtual environments outside the plugin checkout:
 Omarchy validation rejects symlinks inside plugin folders. CI runs the Python
-and JavaScript checks in a fresh Arch Linux container. Native dialogs, focus,
+and JavaScript checks in a fresh Arch Linux container, plus the complete
+marketplace security baseline from a pinned policy revision. That deterministic
+baseline is not a security audit or listing approval. Native dialogs, focus,
 geometry, and monitor lifecycle also need an Omarchy Wayland session.
 
 ## License

@@ -25,3 +25,29 @@ jobs:
           node privacy_test.cjs
           node feed_settings_test.cjs
           node coordination_test.cjs
+      - name: Check marketplace security baseline
+        env:
+          CHECK_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          CHECK_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+          POLICY_COMMIT: 0332cfe6753cbd10df15aa4910bb2f06c7362bd6
+        run: |
+          policy="$(mktemp -d)"
+          git -C "$policy" init --quiet
+          git -C "$policy" remote add origin https://github.com/omacom/omarchy-plugin-marketplace.git
+          git -C "$policy" fetch --quiet --depth 1 origin "$POLICY_COMMIT"
+          git -C "$policy" checkout --quiet --detach "$POLICY_COMMIT"
+          test "$(git -C "$policy" rev-parse HEAD)" = "$POLICY_COMMIT"
+          export POLICY_DIR="$policy"
+          node --input-type=module <<'JS'
+          import { pathToFileURL } from "node:url";
+          const { runSecurityBaseline } = await import(pathToFileURL(
+            process.env.POLICY_DIR + "/scripts/security-baseline-scanner.mjs"
+          ));
+          const result = await runSecurityBaseline(
+            "https://github.com/" + process.env.CHECK_REPOSITORY,
+            process.env.CHECK_COMMIT
+          );
+          console.log(JSON.stringify(result, null, 2));
+          if (result.outcome !== "passed") process.exit(1);
+          JS
