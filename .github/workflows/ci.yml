@@ -13,14 +13,15 @@ jobs:
     container: archlinux:base
     steps:
       - name: Install runtime and test dependencies
-        run: pacman -Syu --noconfirm --needed git python-icalendar python-recurring-ical-events nodejs
+        run: pacman -Syu --noconfirm --needed git python nodejs
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
       - name: Test
         run: |
-          /usr/bin/python3 next_event.py --self-test
-          /usr/bin/python3 test_feed_config.py
+          /usr/bin/python3 -S test_bundle.py
+          /usr/bin/python3 -S next_event.py --self-test
+          /usr/bin/python3 -S test_feed_config.py
           node privacy_test.cjs
           node feed_settings_test.cjs
           node coordination_test.cjs

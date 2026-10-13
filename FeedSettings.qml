@@ -138,7 +138,7 @@ KeyboardPanel {
       payload = ""
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0 && root.open) root.message = "Calendar helper failed. Check that Python calendar dependencies are installed."
+      if (exitCode !== 0 && root.open) root.message = "Calendar helper failed. Check system Python and reinstall the plugin if files are missing."
       if (root.pendingRead && root.open) Qt.callLater(function() {
         if (root.pendingRead && root.open && !root.busy) {
           root.pendingRead = false

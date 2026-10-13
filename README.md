@@ -19,11 +19,11 @@ Demo images use fictional meetings; no private calendar data is shown.
 
 ## Get started
 
-Requires **Omarchy Quattro** with its built-in bar. Install the two Python
-calendar dependencies from Arch’s official repositories, then add the widget:
+Requires **Omarchy Quattro** with its built-in bar and system Python **3.10+**.
+Calendar libraries are included: no additional Python packages, build step,
+or runtime installer. Add the widget:
 
 ```sh
-sudo pacman -S --needed python-icalendar python-recurring-ical-events
 omarchy plugin add https://github.com/barlevalon/omarchy-next-event.git --enable
 ```
 
@@ -179,13 +179,17 @@ Git repositories. Reset a provider’s secret link if it has been exposed.
 <details>
 <summary>Compatibility and dependencies</summary>
 
-Tested on **Omarchy 4.0.4 / Qt 6.11**, with Python 3.14, `icalendar` 7.3.0,
-and `recurring-ical-events` 3.8.2 and 3.9.0. This is not a standalone Waybar widget.
+Native UI tested on **Omarchy 4.0.4 / Qt 6.11**. The bundled helper requires
+Python **3.10+**, with pinned `icalendar` 7.3.0 and `recurring-ical-events` 3.8.2.
+This is not a standalone Waybar widget.
 Palette references are qualified for Qt 6.12’s `Color` name change; native
 Qt 6.12 validation remains a separate check.
 
-The helper uses `/usr/bin/python3`. A mise Python, user-managed Python, or
-virtual environment does not supply packages to that system interpreter.
+The helper uses `/usr/bin/python3` and imports calendar libraries from the
+plugin’s `vendor/` directory, not installed calendar packages. The bundle also
+includes timezone data and transitive dependencies. Nothing is downloaded or
+installed at runtime; maintainers update the pinned bundle explicitly.
+See [bundled components and licenses](THIRD_PARTY.md).
 Node.js is needed only for development tests. “Lightweight” describes a focused
 experience, not a benchmarked CPU or memory footprint.
 
@@ -198,11 +202,12 @@ no sudo or pkexec is used at runtime.
 
 ## Development checks
 
-With the Python dependencies and Node.js installed:
+With Python and Node.js installed (`-S` excludes user/system site-packages):
 
 ```sh
-/usr/bin/python3 next_event.py --self-test
-/usr/bin/python3 test_feed_config.py
+/usr/bin/python3 -S test_bundle.py
+/usr/bin/python3 -S next_event.py --self-test
+/usr/bin/python3 -S test_feed_config.py
 node privacy_test.cjs
 node feed_settings_test.cjs
 node coordination_test.cjs
@@ -218,4 +223,5 @@ geometry, and monitor lifecycle also need an Omarchy Wayland session.
 
 ## License
 
-[MIT](LICENSE).
+Original plugin code: [MIT](LICENSE). Bundled components retain their own
+licenses, including LGPL-3.0-or-later; see [THIRD_PARTY.md](THIRD_PARTY.md).

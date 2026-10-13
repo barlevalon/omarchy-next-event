@@ -102,7 +102,7 @@ def main():
 
         # Exercise the real stdin CLI, with an isolated config home and no network calls.
         home = Path(directory) / "cli"
-        command = [sys.executable, str(Path(backend.__file__)), "--feeds-save"]
+        command = [sys.executable, "-S", str(Path(backend.__file__)), "--feeds-save"]
         saved = subprocess.run(command, input=json.dumps({"urls": [URL]}) + "\n", text=True,
                                capture_output=True, env={**os.environ, "XDG_CONFIG_HOME": str(home)}, check=True)
         assert json.loads(saved.stdout) == {"status": "ok"}

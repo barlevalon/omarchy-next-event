@@ -28,12 +28,14 @@ change on this existing submission rather than creating a second listing.
 The preview is composed from native captures with fictional meetings and feeds;
 no private calendar data is included.
 
-Manual setup is required: install the official Arch packages
-`python-icalendar` and `python-recurring-ical-events` before enabling the
-plugin. The README documents installation, removal, provider setup, and
-limitations. The plugin does not run an installer or use elevated privileges
-at runtime. Feed configuration is outside the repository and saved with
-owner-only permissions.
+System Python 3.10+ is required; calendar libraries and timezone data are
+bundled as pinned, unmodified source with upstream licenses and hashes.
+There are no additional Python package installation steps, runtime downloads,
+or elevated privileges. THIRD_PARTY.md documents every bundled component,
+including LGPL-licensed libraries, and how to replace or rebuild the bundle.
+The README documents installation, removal, provider setup, and limitations.
+Feed configuration is outside the repository and saved with owner-only
+permissions.
 
 ### Submission checklist
 

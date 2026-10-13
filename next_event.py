@@ -11,6 +11,10 @@ from html import unescape
 from pathlib import Path
 from urllib.parse import urlsplit
 
+# Always use the shipped calendar libraries, independent of site-packages.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "vendor"))
+sys.dont_write_bytecode = True
+
 import recurring_ical_events
 from icalendar import Calendar
 
