@@ -1,20 +1,14 @@
 # Bundled Python components
 
-Next Event includes the following pinned pure-Python components under
-`vendor/`, including upstream tests, data, core metadata, and license notices.
-Python source and license files remain unmodified.
+Next Event includes the following unmodified, pure-Python wheel contents under
+`vendor/`. The bundle contains 4,009,970 bytes before filesystem allocation
+(about 3.8 MiB), including upstream tests, data, metadata, and license notices.
 It adds no package installation, build, or download step for users.
 
 Original Next Event code is MIT-licensed. The components below are **not**
 relicensed under MIT; their upstream licenses and copyright notices remain
 with their source. `vendor-lock.json` records exact versions, official PyPI
-wheel URLs, SHA-256 hashes, original wheel RECORD hashes, and bundled core
-metadata hashes. Upstream long descriptions are omitted from every METADATA
-file: their package-installation tutorials do not apply to a vendored plugin.
-Core fields (versions, requirements, authors, license references) are retained.
-Every other shipped file is verified against the original wheel RECORD.
-No runtime installer or privilege mechanism is removed or hidden by this
-metadata-only transformation.
+wheel URLs, SHA-256 hashes, and wheel RECORD hashes.
 
 | Component | Version | License notice |
 | --- | --- | --- |
@@ -40,8 +34,8 @@ Plugin updates may replace local edits; preserve your changes separately.
 Python’s standard `zoneinfo` uses Arch’s system `tzdata` database, already a
 required dependency of `glibc` on Omarchy. The PyPI `tzdata` fallback wheel is
 intentionally omitted: duplicating the operating system’s database adds no
-runtime capability on this supported platform. The retained core metadata
-still declares that cross-platform Python fallback.
+runtime capability on this supported platform. Remaining wheels are unchanged;
+their upstream metadata still declares that cross-platform Python fallback.
 This bundle is not intended for hosts without system IANA timezone data.
 No timezone data is renamed, encoded, or unpacked at runtime.
 

@@ -25,7 +25,7 @@ jobs:
           node privacy_test.cjs
           node feed_settings_test.cjs
           node coordination_test.cjs
-      - name: Check marketplace security baseline
+      - name: Report complete marketplace security baseline
         env:
           CHECK_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           CHECK_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -49,5 +49,17 @@ jobs:
             process.env.CHECK_COMMIT
           );
           console.log(JSON.stringify(result, null, 2));
-          if (result.outcome !== "passed") process.exit(1);
+          if (result.findings.length || !["passed", "review-required"].includes(result.outcome)) {
+            process.exit(1);
+          }
+          if (result.outcome === "review-required") {
+            console.log("::warning title=Marketplace review required::Complete scan; maintainer review is required. This is not security approval.");
+          }
+          const { appendFileSync } = await import("node:fs");
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            "### Marketplace baseline\n\nOutcome: **" + result.outcome +
+            "**. Findings: " + result.findings.length +
+            ". Review capabilities: " + result.capabilities.map(item => item.id).join(", ") +
+            "\n\nA complete scan is not a security audit or marketplace approval.\n"
+          );
           JS

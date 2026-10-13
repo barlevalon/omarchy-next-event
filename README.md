@@ -221,8 +221,11 @@ Tests use synthetic data and temporary configurations, never real calendar
 feeds. Keep development virtual environments outside the plugin checkout:
 Omarchy validation rejects symlinks inside plugin folders. CI runs the Python
 and JavaScript checks in a fresh Arch Linux container, plus the complete
-marketplace security baseline from a pinned policy revision. That deterministic
-baseline is not a security audit or listing approval. Native dialogs, focus,
+marketplace security baseline from a pinned policy revision. CI fails on
+incomplete scans or findings and reports review capabilities explicitly.
+Upstream metadata is preserved, including installation examples that require
+manual scanner review; green test CI does not mean security approval.
+The deterministic baseline is not a security audit or listing approval. Native dialogs, focus,
 geometry, and monitor lifecycle also need an Omarchy Wayland session.
 
 ## License
