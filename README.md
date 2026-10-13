@@ -186,9 +186,11 @@ Palette references are qualified for Qt 6.12’s `Color` name change; native
 Qt 6.12 validation remains a separate check.
 
 The helper uses `/usr/bin/python3` and imports calendar libraries from the
-plugin’s `vendor/` directory, not installed calendar packages. The bundle also
-includes timezone data and transitive dependencies. Nothing is downloaded or
-installed at runtime; maintainers update the pinned bundle explicitly.
+plugin’s `vendor/` directory, not installed calendar packages. Transitive
+Python libraries are included. Python’s standard `zoneinfo` reads Arch’s existing
+timezone database (`tzdata`, already required by `glibc`); a second database is
+not bundled. Nothing is downloaded or installed at runtime; maintainers update
+the pinned bundle explicitly.
 See [bundled components and licenses](THIRD_PARTY.md).
 Node.js is needed only for development tests. “Lightweight” describes a focused
 experience, not a benchmarked CPU or memory footprint.

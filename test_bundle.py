@@ -5,6 +5,7 @@ import base64
 import csv
 import hashlib
 import importlib.metadata
+import importlib.util
 import json
 import os
 import subprocess
@@ -12,10 +13,9 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo, reset_tzpath
+from zoneinfo import TZPATH, ZoneInfo
 
 import next_event as backend
-import tzdata
 import typing_extensions
 
 
@@ -51,12 +51,13 @@ def main():
                     actual = base64.urlsafe_b64encode(hashlib.new(algorithm, data).digest()).decode().rstrip("=")
                     assert actual == expected, name
     for name in ["icalendar", "recurring_ical_events", "dateutil", "six",
-                 "x_wr_timezone", "tzdata", "click", "typing_extensions"]:
+                 "x_wr_timezone", "click", "typing_extensions"]:
         module = sys.modules[name]
         assert Path(module.__file__).resolve().is_relative_to(VENDOR), name
 
-    # Exercise packaged tzdata, rather than accidentally relying on the OS database.
-    reset_tzpath(())
+    # Omarchy/Arch provides the database through glibc -> tzdata; no Python fallback.
+    assert importlib.util.find_spec("tzdata") is None, "Do not ship a second timezone database"
+    assert any((Path(path) / "America/New_York").is_file() for path in TZPATH)
     ZoneInfo.clear_cache()
     new_york = ZoneInfo("America/New_York")
     assert datetime(2026, 10, 25, 9, tzinfo=new_york).utcoffset().total_seconds() == -14400
@@ -96,7 +97,31 @@ END:VCALENDAR\r
             assert len(events) == 1
             assert events[0]["title"] == expected_title
             assert datetime.fromisoformat(events[0]["start"]).timestamp() == now.replace(hour=expected_hour).timestamp()
-    print("ok: pinned bundle integrity, local imports without site-packages, timezone data, DST, recurrence exceptions")
+    # Provider-defined VTIMEZONEs still work when the TZID is not in the OS database.
+    custom_calendar = b"""BEGIN:VCALENDAR\r
+VERSION:2.0\r
+BEGIN:VTIMEZONE\r
+TZID:Demo/Custom\r
+BEGIN:STANDARD\r
+DTSTART:19700101T000000\r
+TZOFFSETFROM:+0230\r
+TZOFFSETTO:+0230\r
+TZNAME:Demo\r
+END:STANDARD\r
+END:VTIMEZONE\r
+BEGIN:VEVENT\r
+UID:custom-timezone-demo\r
+DTSTART;TZID=Demo/Custom:20261025T090000\r
+DTEND;TZID=Demo/Custom:20261025T100000\r
+SUMMARY:Demo custom timezone\r
+END:VEVENT\r
+END:VCALENDAR\r
+"""
+    now = datetime(2026, 10, 25, tzinfo=timezone.utc)
+    events, failures = backend.upcoming_events([custom_calendar], now)
+    assert failures == 0 and len(events) == 1
+    assert datetime.fromisoformat(events[0]["start"]).timestamp() == now.replace(hour=6, minute=30).timestamp()
+    print("ok: pinned bundle integrity, local imports without site-packages, system timezone data, DST, recurrence exceptions, custom VTIMEZONE")
 
 
 if __name__ == "__main__":

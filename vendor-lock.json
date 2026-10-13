@@ -1,5 +1,8 @@
 {
   "python": ">=3.10",
+  "platform_dependencies": {
+    "timezone_database": "Arch tzdata, required by glibc; read by Python stdlib zoneinfo"
+  },
   "packages": [
     {
       "name": "icalendar",
@@ -50,16 +53,6 @@
       "sha256": "e74a53b9f4f7def8138455c240e65e47c224778bce3c024fcd6da2cbe91ca038",
       "record": "x_wr_timezone-2.0.1.dist-info/RECORD",
       "record_sha256": "de81314bab690d35a84c89ba11d7558d2fa9f27d54a51e5fa588ea63ad07fa4b"
-    },
-    {
-      "name": "tzdata",
-      "version": "2026.5",
-      "license": "Apache-2.0 (with upstream timezone notices)",
-      "filename": "tzdata-2026.5-py2.py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/94/21/1e5995a1c920cce14e4bffae20c665ec10e7ed03ab25e006cd741092b718/tzdata-2026.5-py2.py3-none-any.whl",
-      "sha256": "b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac",
-      "record": "tzdata-2026.5.dist-info/RECORD",
-      "record_sha256": "ba78a799d600ac64dad24b15244a3e662940c62bd77e6f72d4e61efff877dd89"
     },
     {
       "name": "click",

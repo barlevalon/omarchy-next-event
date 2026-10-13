@@ -28,10 +28,11 @@ change on this existing submission rather than creating a second listing.
 The preview is composed from native captures with fictional meetings and feeds;
 no private calendar data is included.
 
-System Python 3.10+ is required; calendar libraries and timezone data are
-bundled as pinned, unmodified source with upstream licenses and hashes.
-There are no additional Python package installation steps, runtime downloads,
-or elevated privileges. THIRD_PARTY.md documents every bundled component,
+System Python 3.10+ is required; calendar libraries are bundled as pinned,
+unmodified source with upstream licenses and hashes. Timezones come from Arch’s
+existing `tzdata` database, already required by `glibc`; there is no duplicate
+Python timezone database. There are no additional Python package installation
+steps, runtime downloads, or elevated privileges. THIRD_PARTY.md documents every bundled component,
 including LGPL-licensed libraries, and how to replace or rebuild the bundle.
 The README documents installation, removal, provider setup, and limitations.
 Feed configuration is outside the repository and saved with owner-only

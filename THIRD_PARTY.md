@@ -1,8 +1,8 @@
 # Bundled Python components
 
 Next Event includes the following unmodified, pure-Python wheel contents under
-`vendor/`. The bundle contains 4,591,888 bytes before filesystem allocation
-(about 4.4 MiB), including upstream tests, data, metadata, and license notices.
+`vendor/`. The bundle contains 4,009,970 bytes before filesystem allocation
+(about 3.8 MiB), including upstream tests, data, metadata, and license notices.
 It adds no package installation, build, or download step for users.
 
 Original Next Event code is MIT-licensed. The components below are **not**
@@ -17,7 +17,6 @@ wheel URLs, SHA-256 hashes, and wheel RECORD hashes.
 | python-dateutil | 2.9.0.post0 | [Apache-2.0 or BSD-3-Clause](vendor/python_dateutil-2.9.0.post0.dist-info/LICENSE) |
 | six | 1.17.0 | [MIT](vendor/six-1.17.0.dist-info/LICENSE) |
 | x-wr-timezone | 2.0.1 | [LGPL-3.0-or-later](vendor/x_wr_timezone-2.0.1.dist-info/LICENSE) |
-| tzdata | 2026.5 | [Apache-2.0 and upstream timezone notices](vendor/tzdata-2026.5.dist-info/licenses/LICENSE) |
 | click | 8.5.0 | [BSD-3-Clause](vendor/click-8.5.0.dist-info/licenses/LICENSE.txt) |
 | typing-extensions | 4.15.0 | [PSF-2.0](vendor/typing_extensions-4.15.0.dist-info/licenses/LICENSE) |
 
@@ -29,6 +28,16 @@ No runtime hash enforcement, signing key, or rebuilding of Next Event is needed.
 Bundle integrity checks are development checks, not execution restrictions.
 After changing library files, restart the shell to ensure fresh helper imports.
 Plugin updates may replace local edits; preserve your changes separately.
+
+## Platform timezone database
+
+Python’s standard `zoneinfo` uses Arch’s system `tzdata` database, already a
+required dependency of `glibc` on Omarchy. The PyPI `tzdata` fallback wheel is
+intentionally omitted: duplicating the operating system’s database adds no
+runtime capability on this supported platform. Remaining wheels are unchanged;
+their upstream metadata still declares that cross-platform Python fallback.
+This bundle is not intended for hosts without system IANA timezone data.
+No timezone data is renamed, encoded, or unpacked at runtime.
 
 ## Restore the pinned bundle
 
