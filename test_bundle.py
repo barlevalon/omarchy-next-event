@@ -44,6 +44,11 @@ def main():
                 path = VENDOR / name
                 assert path.resolve().is_relative_to(VENDOR) and not path.is_symlink()
                 data = path.read_bytes()
+                if Path(name).name == "METADATA" and Path(name).parent.name.endswith(".dist-info"):
+                    assert data.partition(b"\n\n")[2] == b"", "Only core metadata is shipped"
+                    assert len(data) == package["metadata_size"]
+                    assert hashlib.sha256(data).hexdigest() == package["metadata_sha256"]
+                    continue  # The upstream RECORD describes the original long description.
                 if size:
                     assert len(data) == int(size), name
                 if digest:

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Maintainer-only: restore the exact, unmodified wheels in vendor-lock.json."""
+"""Maintainer-only: restore pinned sources/licenses and core wheel metadata."""
 
 import hashlib
 import io
@@ -43,7 +43,16 @@ def main():
                     if destination.exists():
                         raise ValueError("Overlapping wheel contents")
                     destination.parent.mkdir(parents=True, exist_ok=True)
-                    destination.write_bytes(archive.read(member))
+                    data = archive.read(member)
+                    if path.name == "METADATA" and path.parent.name.endswith(".dist-info"):
+                        # Upstream install tutorials do not apply to this vendored plugin.
+                        headers, separator, _ = data.partition(b"\n\n")
+                        if not separator:
+                            raise ValueError("Wheel metadata has no header separator")
+                        data = headers + b"\n"
+                        if hashlib.sha256(data).hexdigest() != package["metadata_sha256"]:
+                            raise ValueError("Core metadata hash mismatch: " + package["name"])
+                    destination.write_bytes(data)
             print(package["name"], package["version"])
         stage.rename(target)
 
