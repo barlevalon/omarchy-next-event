@@ -6,7 +6,10 @@ import csv
 import hashlib
 import importlib.metadata
 import json
+import os
+import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, reset_tzpath
@@ -22,6 +25,13 @@ VENDOR = ROOT / "vendor"
 
 def main():
     assert sys.flags.no_site, "Use python3 -S to exclude installed Python packages"
+    # QML executes the helper directly: exercise its real shebang, not only -S tests.
+    with tempfile.TemporaryDirectory() as directory:
+        Path(directory, "sitecustomize.py").write_text("raise SystemExit(99)\n")
+        result = subprocess.run([str(ROOT / "next_event.py"), "--self-test"],
+                                env={**os.environ, "PYTHONPATH": directory},
+                                text=True, capture_output=True)
+        assert result.returncode == 0, result.stderr
     lock = json.loads((ROOT / "vendor-lock.json").read_text())
     for package in lock["packages"]:
         distribution = importlib.metadata.distribution(package["name"])

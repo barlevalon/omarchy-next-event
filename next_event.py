@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -S
 
 import json
 import os
