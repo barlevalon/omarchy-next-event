@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "alon.next-event",
+  "name": "Next event",
+  "version": "1.0.0",
+  "author": "Alon",
+  "description": "Privacy-first next meeting widget with overlap selection and secure ICS feed settings",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Next event",
+    "description": "Privacy-first meetings, overlap selection, and ICS feed settings",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}
