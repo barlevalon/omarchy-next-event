@@ -24,19 +24,21 @@ for (const file of ['BarWidget.qml', 'FeedSettings.qml']) {
   assert.ok(!/(?<!Commons\.)\bColor\./.test(qml), 'Palette must not collide with QtQuick.Color');
 }
 const event = {
-  title: 'Confidential acquisition review',
+  title: 'Confidential review',
+  calendarId: 'work',
   start: '2026-08-29T15:00:00Z',
   end: '2026-08-29T15:30:00Z',
   ongoing: false,
   meetingUrl: 'https://meet.google.com/secret-room',
 };
 const commands = [];
-let saved;
 let hidden = 0;
 let refreshed = 0;
 const context = vm.createContext({
   Date, Object,
-  settings: { existingSetting: 42 },
+  calendarsData: [], configGeneration: 0, privacyError: '', privacySaving: false,
+  privacyProcess: { running: false }, fetchProcess: { running: false },
+  peerWidgets() { return [context]; },
   moduleName: manifest.id,
   status: 'ok', errorText: '', eventData: event, eventsData: [],
   mounted: true, updateOwner: true,
@@ -49,27 +51,28 @@ const context = vm.createContext({
   broadcast(method) { assert.equal(method, 'refresh'); refreshed++; },
   bar: {
     hideTooltip() { hidden++; },
-    shell: { updateEntryInline(id, value) { saved = { id, value }; } },
+
   },
-  setting(name, fallback) { return context.settings[name] ?? fallback; },
+
   refresh() { refreshed++; },
   Qt: { LeftButton: 1, RightButton: 2, MiddleButton: 4,
     formatTime(date) { return date.toISOString().slice(11, 16); } },
   Quickshell: { execDetached(command) { commands.push(command); } },
 });
 context.root = context;
-for (const name of ['eventTitle', 'eventChoiceTitle', 'eventTiming', 'togglePrivacy',
+for (const name of ['calendarFor', 'titlesHidden', 'eventTitle', 'eventChoiceTitle', 'eventTiming', 'togglePrivacy',
+  'savePrivacy', 'applyPrivacyResult', 'updateCalendars', 'feedsSaved',
   'closePicker', 'close', 'openFeedSettings', 'joinEvent', 'eventKey', 'sendNotification', 'checkNotifications', 'applyResult']) {
   const body = source.match(new RegExp(`  function ${name}\\([^]*?\\n  }`));
   assert.ok(body, `Missing ${name}`);
   vm.runInContext(body[0], context);
 }
 const privacy = source.match(/readonly property bool privacyMode: ([^\n]+)/)[1];
-const hint = source.match(/readonly property string privacyHint: ([^\n]+)/)[1];
+const hint = source.match(/readonly property string privacyHint: ([^]*?)\n\n/)[1];
 const label = source.match(/readonly property string label: \{([^]*?)\n  }/)[1];
 const details = source.match(/readonly property string details: \{([^]*?)\n  }/)[1];
 const press = source.match(/onPressed: function\(button\) \{([^]*?)\n    }/)[1];
-const hideTooltip = source.match(/onPrivacyModeChanged: ([^\n]+)/)[1];
+const hideTooltip = source.match(/onCalendarsDataChanged: ([^\n]+)/)[1];
 const overlaps = source.match(/readonly property var overlapEvents: \{([^]*?)\n  }/)[1];
 const selection = source.match(/readonly property var selectedEvent: ([^\n]+)/)[1];
 function render() {
@@ -85,10 +88,10 @@ function click(button) {
   vm.runInContext(`(function(button) {${press}})(clickedButton)`, context);
 }
 
-// Missing settings must never reveal details, including before a config loads.
-for (const settings of [undefined, {}, { privacyMode: true }, { privacyMode: 'false' }]) {
-  context.settings = settings;
-  context.setting = (name, fallback) => context.settings?.[name] ?? fallback;
+// Missing or malformed calendar preferences must never reveal details.
+for (const calendars of [[], [{ id: 'work', name: 'Work' }],
+  [{ id: 'work', name: 'Work', hideTitles: true }], [{ id: 'work', name: 'Work', hideTitles: 'false' }]]) {
+  context.calendarsData = calendars;
   const output = render().join('\n');
   assert.equal(context.privacyMode, true);
   assert.ok(output.includes('Private event'));
@@ -105,14 +108,28 @@ assert.ok(!commands.at(-1).join(' ').includes(event.meetingUrl));
 context.sendNotification(event, true);
 assert.ok(commands.at(-1).includes('Event starting now'));
 
-context.settings = { existingSetting: 42, privacyMode: true };
+context.calendarsData = [{ id: 'work', name: 'Work', hideTitles: true },
+  { id: 'personal', name: 'Personal', hideTitles: true }];
 render();
+assert.ok(context.privacyHint.includes('reveal titles for Work'));
 click(2);
-assert.equal(saved.id, manifest.id);
-assert.equal(saved.value.privacyMode, false);
-assert.equal(saved.value.existingSetting, 42);
-context.settings = saved.value;
+assert.deepEqual(JSON.parse(context.privacyProcess.payload), { calendarId: 'work', hideTitles: false });
+assert.ok(!context.privacyProcess.payload.includes(event.meetingUrl));
+assert.ok(!render().join('\n').includes(event.title), 'Do not reveal until persistence succeeds');
+click(2);
+assert.equal(JSON.parse(context.privacyProcess.payload).hideTitles, false, 'Ignore repeat clicks during a save');
+function finishPrivacy(hidden) {
+  context.applyPrivacyResult(JSON.stringify({ status: 'ok', calendars: [
+    { id: 'work', name: 'Work', hideTitles: hidden },
+    { id: 'personal', name: 'Personal', hideTitles: true },
+  ] }));
+  context.privacyProcess.running = false;
+}
+finishPrivacy(false);
 assert.ok(render().every(text => text.includes(event.title)));
+assert.ok(render()[0].includes('Work · '));
+assert.equal(context.calendarsData[1].hideTitles, true);
+assert.ok(context.privacyHint.includes('hide titles for Work'));
 vm.runInContext(hideTooltip, context);
 assert.equal(hidden, 1);
 context.sendNotification(event, true);
@@ -120,8 +137,8 @@ assert.ok(commands.at(-1).join(' ').includes(event.title));
 assert.ok(commands.at(-1).includes(event.meetingUrl));
 
 click(2);
-assert.equal(saved.value.privacyMode, true);
-context.settings = saved.value;
+assert.equal(JSON.parse(context.privacyProcess.payload).hideTitles, true);
+finishPrivacy(true);
 render();
 click(1);
 assert.deepEqual(Array.from(context.openProcess.command), ['xdg-open', event.meetingUrl]);
@@ -131,15 +148,15 @@ assert.equal(refreshed, 0);
 context.eventData = { ...event, ongoing: true };
 assert.ok(render()[0].startsWith('now'));
 context.eventData = null;
-for (const privacyMode of [true, false]) {
-  context.settings = { privacyMode };
+for (const hideTitles of [true, false]) {
+  context.calendarsData = [{ id: 'work', name: 'Work', hideTitles }];
   assert.equal(render()[0], '\uf133', 'Keep feed settings reachable when no events remain');
 }
-context.settings = { privacyMode: true };
+context.calendarsData = [{ id: 'work', name: 'Work', hideTitles: true }];
 context.errorText = `Failed to fetch ${event.meetingUrl}`;
 assert.ok(!render()[1].includes(event.meetingUrl));
 context.status = 'setup';
-assert.ok(render()[1].includes('Right-click'));
+assert.ok(!render()[1].includes('Right-click'), 'No calendar toggle when no event is displayed');
 // Same-schedule entries must both be visible, with explicit selection before joining.
 const second = { ...event, title: 'Team sync', meetingUrl: 'https://meet.google.com/second-room' };
 function setEvents(events) {
@@ -149,7 +166,7 @@ function setEvents(events) {
   context.eventData = events[0] ? { ...events[0] } : null; // Backend emits separate objects.
   return render();
 }
-context.settings = { privacyMode: false };
+context.calendarsData = [{ id: 'work', name: 'Work', hideTitles: false }];
 let output = setEvents([event, second]);
 assert.ok(output[0].endsWith('+1 overlap'));
 assert.ok(output[1].includes(event.title) && output[1].includes(second.title));
@@ -171,7 +188,7 @@ assert.equal(context.popupOpen, false);
 assert.equal(context.selectedKey, '');
 
 // Privacy applies to every conflict title, including numbered picker/accessibility labels.
-context.settings = { privacyMode: true };
+context.calendarsData = [{ id: 'work', name: 'Work', hideTitles: true }];
 output = render();
 assert.ok(output[1].includes('Private event 1') && output[1].includes('Private event 2'));
 for (const item of [event, second]) {
@@ -184,11 +201,51 @@ const accessibleName = source.match(/Accessible.name: ([^\n]+)/)[1];
 context.eventRow = { modelData: second, index: 1 };
 context.modelData = second;
 context.index = 1;
-assert.equal(vm.runInContext(pickerTitle, context), 'Private event 2');
+assert.equal(vm.runInContext(pickerTitle, context), 'Work · Private event 2');
 assert.ok(!vm.runInContext(accessibleName, context).includes(second.title));
-context.settings = { privacyMode: false };
+context.calendarsData = [{ id: 'work', name: 'Work', hideTitles: false }];
 render();
-assert.equal(vm.runInContext(pickerTitle, context), second.title);
+assert.equal(vm.runInContext(pickerTitle, context), 'Work · ' + second.title);
+
+// Calendar privacy is independent in mixed-calendar overlaps and reminders.
+const personal = { ...second, calendarId: 'personal' };
+context.calendarsData.push({ id: 'personal', name: 'Personal', hideTitles: true });
+output = setEvents([event, personal]);
+assert.ok(output[1].includes(event.title));
+assert.ok(output[1].includes('Personal · Private event 2'));
+assert.ok(!output[1].includes(personal.title));
+context.sendNotification(personal, true);
+assert.ok(!commands.at(-1).join(' ').includes(personal.title));
+assert.ok(!commands.at(-1).includes('--exec'));
+context.sendNotification(event, true);
+assert.ok(commands.at(-1).includes('--exec'));
+assert.notEqual(context.eventKey(event), context.eventKey({ ...event, calendarId: 'personal' }));
+
+// Do not overwrite editor drafts; no-op without a displayed calendar.
+context.editingFeeds = true;
+const beforeDraftClick = context.privacyProcess.payload;
+click(2);
+assert.equal(context.privacyProcess.payload, beforeDraftClick);
+assert.ok(context.privacyError.includes('Close calendar settings'));
+context.editingFeeds = false;
+context.status = 'error';
+click(2);
+assert.equal(context.privacyProcess.payload, beforeDraftClick);
+context.status = 'ok';
+
+// Failed saves leave privacy unchanged; in-flight fetches are invalidated on success.
+context.applyPrivacyResult(JSON.stringify({ status: 'error' }));
+assert.equal(context.calendarsData[0].hideTitles, false);
+assert.ok(context.privacyError.includes('could not be saved'));
+context.fetchProcess.running = true;
+context.refreshPending = false;
+const generation = context.configGeneration;
+finishPrivacy(true);
+assert.equal(context.configGeneration, generation + 1);
+assert.equal(context.refreshPending, true);
+context.fetchProcess.running = false;
+finishPrivacy(false);
+setEvents([event, second]);
 
 // Partial, contained and spanning conflicts count; adjacent and zero-duration entries don't.
 function at(title, start, end) {
@@ -262,8 +319,10 @@ render();
 const shownBeforeSetup = context.feedSettings.shown;
 click(1);
 assert.equal(context.feedSettings.shown, shownBeforeSetup + 1, 'Setup opens the feed editor');
-const savedRefresh = source.match(/onSaved: ([^\n]+)/)[1];
+const savedRefresh = source.match(/onSaved: function\(calendars\) \{ ([^]*?) }/)[1];
+context.calendars = context.calendarsData;
 const refreshBeforeSave = refreshed;
 vm.runInContext(savedRefresh, context);
 assert.equal(refreshed, refreshBeforeSave + 1, 'Save must request one shared refresh for every monitor');
+assert.ok(!source.includes('updateEntryInline'), 'Calendar config is the only privacy persistence');
 console.log('ok: privacy, overlap detection, picker selection, join, reminders, setup access, exclusive panels, shared refresh');

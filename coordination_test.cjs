@@ -13,12 +13,14 @@ const ownerChange = source.match(/  onUpdateOwnerChanged: ({[^]*?\n  })/)[1];
 const timerTrigger = source.match(/id: notificationTimer[^]*?onTriggered: ([^\n]+)/)[1];
 const Clock = class extends Date { static now() { return clock; } };
 function widget() {
-  const process = { running: false };
+  const process = { running: false, generation: 0 };
   const state = {
     Date: Clock, JSON, Math, String,
     moduleName: id, mounted: true,
     pluginDir: '/synthetic/plugin',
     status: 'loading', errorText: '', eventData: null, eventsData: [],
+    calendarsData: [], configGeneration: 0, privacyError: '', privacySaving: false,
+    privacyProcess: { running: false }, editingFeeds: false,
     notified: {}, refreshPending: false,
     fetchProcess: process,
     notificationTimer: {
@@ -27,7 +29,7 @@ function widget() {
       start() { this.running = true; this.deadline = clock + this.interval; },
     },
     notificationCommand: 'synthetic-notify',
-    privacyMode: true,
+    titlesHidden() { return true; },
     eventTitle() { return 'Private event'; },
     Qt: {
       formatTime(date) { return date.toISOString().slice(11, 16); },
@@ -41,7 +43,8 @@ function widget() {
     get() { return state[key]; }, set(value) { state[key] = value; },
   });
   for (const name of ['peerWidgets', 'syncFromOwner', 'distributeResult', 'refresh',
-    'applyResult', 'eventKey', 'sendNotification', 'checkNotifications']) {
+    'applyResult', 'eventKey', 'sendNotification', 'checkNotifications',
+    'updateCalendars', 'applyPrivacyResult', 'savePrivacy', 'togglePrivacy']) {
     const method = source.match(new RegExp(`  function ${name}\\([^]*?\\n  }`));
     assert.ok(method, 'Missing ' + name);
     vm.runInContext(method[0], context);
@@ -69,7 +72,7 @@ second.refresh();
 assert.equal(first.fetchProcess.running, true, 'Refresh from any monitor reaches one owner');
 assert.equal(second.fetchProcess.running, false);
 const events = ['Demo stand-up', 'Demo customer call'].map((title, index) => ({
-  title, start: '2026-10-13T10:00:00Z', end: '2026-10-13T10:30:00Z',
+  title, calendarId: 'work', start: '2026-10-13T10:00:00Z', end: '2026-10-13T10:30:00Z',
   ongoing: false, meetingUrl: 'https://meet.google.com/demo-' + index,
 }));
 first.distributeResult(JSON.stringify({ status: 'ok', event: events[0], events }));
@@ -123,6 +126,25 @@ assert.equal(third.eventsData.length, 0);
 assert.ok(source.includes('running: root.updateOwner'));
 assert.ok(source.includes('onStreamFinished: root.distributeResult(text)'));
 assert.ok(source.includes('Component.onDestruction: mounted = false'));
+// A calendar privacy save reaches every monitor and invalidates an older fetch.
+second.updateCalendars([{ id: 'work', name: 'Work', hideTitles: false }]);
+assert.equal(third.calendarsData[0].hideTitles, false);
+assert.equal(second.configGeneration, third.configGeneration);
+second.distributeResult(JSON.stringify({ status: 'ok', event: events[0], events,
+  calendars: [{ id: 'work', name: 'Work', hideTitles: true }] }));
+assert.equal(third.calendarsData[0].hideTitles, false, 'Old fetch must not revert persisted privacy');
+second.fetchProcess.generation = second.configGeneration;
+second.distributeResult(JSON.stringify({ status: 'ok', event: events[0], events,
+  calendars: second.calendarsData }));
+assert.equal(third.calendarsData[0].hideTitles, false);
+third.togglePrivacy();
+assert.equal(JSON.parse(second.privacyProcess.payload).calendarId, 'work');
+assert.equal(third.privacyProcess.running, false, 'Any monitor routes privacy writes to one owner');
+const fourth = widget();
+members.push(fourth);
+fourth.syncFromOwner();
+assert.equal(fourth.configGeneration, second.configGeneration);
+assert.equal(fourth.calendarsData[0].hideTitles, false);
 // Deferred startup must discard ownership lost before its callback runs.
 second.fetchProcess.running = false;
 second.ownerChanged();

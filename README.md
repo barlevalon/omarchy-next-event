@@ -7,12 +7,12 @@ get a timely heads-up, and join without hunting through tabs.
 
 Your calendar handles the planning. Next Event keeps what’s next within reach.
 
-![Next Event in the Omarchy bar, with a meeting picker and privacy mode](preview.png)
+![Next Event in the Omarchy bar, with a meeting picker and hidden event titles (earlier UI)](preview.png)
 
 - **Small and focused.** No month views or event management—just upcoming meetings.
 - **Less tab-hopping.** Join Google Meet, Teams, or Zoom straight from the bar.
 - **A timely heads-up.** Reminders before meetings and when they start.
-- **Privacy when you need it.** Hide event titles with a right-click.
+- **Privacy per calendar.** Hide or reveal a calendar’s event titles with a right-click.
 - **Your calendars, together.** Upcoming meetings from multiple calendars in one place.
 
 Demo images use fictional meetings; no private calendar data is shown.
@@ -30,16 +30,17 @@ omarchy plugin add https://github.com/barlevalon/omarchy-next-event.git --enable
 Choose a bar section when prompted. Then:
 
 1. Left-click **setup**, or middle-click the widget, to open calendar settings.
-2. Paste an **HTTPS ICS subscription link** from your calendar provider.
+2. Name the calendar and paste an **HTTPS ICS subscription link** from your calendar provider.
 3. Select **Test connection**, then **Save & refresh**.
 
-Use **Add feed** to connect additional calendars. Settings also include provider
+Use **Add feed** to connect additional calendars. Each calendar has a name and a
+**Hide event titles** setting, enabled by default. Settings also include provider
 help and a refresh button. An empty calendar still leaves settings within reach.
 
 <details>
 <summary>See calendar settings with fictional feeds</summary>
 
-![Calendar settings with masked fictional feed links and successful connection tests](docs/settings.png)
+![Earlier calendar settings UI with masked fictional feed links and successful connection tests](docs/settings.png)
 
 </details>
 
@@ -69,13 +70,23 @@ public or bypass an organization’s policy to use this widget.
 | --- | --- |
 | Left-click a meeting with a recognized link | Join the meeting |
 | Middle-click | Open calendar settings |
-| Right-click | Toggle privacy mode |
+| Right-click a displayed event | Toggle and save title privacy for that event’s calendar |
 | Left-click setup, an error, or the empty calendar icon | Open calendar settings |
 
-Privacy mode hides event titles in the bar, tooltips, picker, and reminders.
-It starts enabled; a right-click makes switching quick when sharing your screen.
-Times and overlap counts remain visible. Privacy mode protects the display,
-not access to the calendar or an explicitly opened meeting link.
+Each event includes its calendar name, for example **14:00 · Work · Design review**.
+When titles are hidden, it reads **14:00 · Work · Private event**. Calendar names,
+times, and overlap counts remain visible; choose non-sensitive calendar names.
+
+Right-click changes the saved **Hide event titles** setting for the displayed
+event’s calendar, not just that event. The choice applies to all events from
+that calendar in the bar, tooltips, picker, and future reminders, across monitors
+and shell restarts. Other calendars keep their own settings. The calendar editor
+changes the same setting; close it before using the right-click shortcut.
+Right-click does nothing when no event is displayed. There is no global privacy
+mode or temporary reveal state. Before sharing your screen, hide titles for
+each calendar you want to protect; already-delivered reminders are not redacted.
+Title privacy protects the display, not access to the calendar or an explicitly
+opened meeting link.
 
 ### When meetings overlap
 
@@ -87,7 +98,7 @@ do not create overlaps.
 <details>
 <summary>See the meeting picker</summary>
 
-![Two fictional overlapping meetings with an explicit Join meeting button](docs/picker.png)
+![Earlier meeting picker UI with two fictional overlapping meetings and an explicit Join meeting button](docs/picker.png)
 
 </details>
 
@@ -116,8 +127,7 @@ Revoking or resetting the sharing link at your provider is a separate action.
 The permanent plugin ID is `io.github.barlevalon.next-event`; default placement
 is the center. If you installed the early `alon.next-event` version, migrate
 **before** an ordinary update: updates do not rename an installed folder.
-Back up the old plugin folder and `shell.json`, and record placement and privacy
-settings. Then:
+Back up the old plugin folder and `shell.json`, and record placement. Then:
 
 ```sh
 omarchy plugin remove alon.next-event
@@ -125,8 +135,8 @@ omarchy plugin add https://github.com/barlevalon/omarchy-next-event.git --enable
 omarchy restart shell
 ```
 
-Restore your recorded placement and privacy choice after adding. Feed links
-remain in the external configuration file; removal does not delete them.
+Restore your recorded placement after adding. Feed links remain in the external
+configuration file; removal does not delete them.
 
 ## Details and limits
 
@@ -166,9 +176,15 @@ Configuration is saved atomically with owner-only permissions (`0600`) to:
 ${XDG_CONFIG_HOME:-~/.config}/omarchy/calendar-feeds
 ```
 
+The file stores named calendar records with stable IDs, feed URLs, and title
+privacy flags as JSON. Existing URL-per-line files are read without losing links;
+calendars receive names such as **Calendar 1**, with titles hidden by default.
+The next save or right-click writes the new format. The earlier global
+`privacyMode` shell setting is no longer used; configure each calendar instead.
+
 This is plaintext storage, not encryption. URLs travel to the helper over stdin,
 not command-line arguments. Connection errors do not display URLs or private
-calendar text. While privacy mode is enabled, reminders have no meeting action;
+calendar text. While a calendar’s titles are hidden, its reminders have no meeting action;
 an explicit click on the bar can still open the recognized meeting link.
 
 Never include real feed links or private event data in issues, screenshots, or
@@ -216,6 +232,10 @@ node coordination_test.cjs
 qmllint BarWidget.qml FeedSettings.qml
 omarchy plugin validate .
 ```
+
+After copying changed plugin files into a running installation, run
+`omarchy restart shell`. Plugin rescans can leave nested QML panels cached;
+helper protocol changes need the UI and helper to reload together.
 
 Tests use synthetic data and temporary configurations, never real calendar
 feeds. Keep development virtual environments outside the plugin checkout:

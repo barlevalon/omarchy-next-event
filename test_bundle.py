@@ -89,7 +89,7 @@ END:VCALENDAR\r
     ]:
         month = 10 if day == 25 else 11
         now = datetime(2026, month, day, tzinfo=timezone.utc)
-        events, failures = backend.upcoming_events([calendar], now)
+        events, failures = backend.upcoming_events([("work", calendar)], now)
         assert failures == 0
         if expected_hour is None:
             assert events == [], "EXDATE must exclude the occurrence"
@@ -118,7 +118,7 @@ END:VEVENT\r
 END:VCALENDAR\r
 """
     now = datetime(2026, 10, 25, tzinfo=timezone.utc)
-    events, failures = backend.upcoming_events([custom_calendar], now)
+    events, failures = backend.upcoming_events([("work", custom_calendar)], now)
     assert failures == 0 and len(events) == 1
     assert datetime.fromisoformat(events[0]["start"]).timestamp() == now.replace(hour=6, minute=30).timestamp()
     print("ok: pinned bundle integrity, local imports without site-packages, system timezone data, DST, recurrence exceptions, custom VTIMEZONE")

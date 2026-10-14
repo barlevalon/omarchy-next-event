@@ -15,7 +15,7 @@ KeyboardPanel {
   property bool feedsLoaded: false
   property string message: ""
   readonly property bool busy: configProcess.running
-  signal saved()
+  signal saved(var calendars)
   signal refreshRequested()
 
   contentWidth: fittedContentWidth(Style.space(460))
@@ -50,8 +50,18 @@ KeyboardPanel {
     return values
   }
 
+  function calendars() {
+    var values = []
+    for (var i = 0; i < feeds.count; i++) {
+      var feed = feeds.get(i)
+      values.push({ id: feed.calendarId, name: feed.name, url: feed.url, hideTitles: feed.hideTitles })
+    }
+    return values
+  }
+
   function addFeed() {
-    feeds.append({ url: "", feedback: "", connected: false })
+    feeds.append({ calendarId: "calendar-" + Date.now().toString(16) + "-" + Math.random().toString(16).slice(2),
+      name: "Calendar " + (feeds.count + 1), hideTitles: true, url: "", feedback: "", connected: false })
     message = ""
     Qt.callLater(function() {
       var row = feedRows.itemAt(feeds.count - 1)
@@ -84,7 +94,8 @@ KeyboardPanel {
     if (action === "read") feedsLoaded = false
     message = action === "read" ? "Loading feeds…" : (action === "test" ? "Testing connections…" : "Saving feeds…")
     configProcess.action = action
-    configProcess.payload = action === "read" ? "" : JSON.stringify({ urls: urls() })
+    configProcess.payload = action === "read" ? ""
+      : JSON.stringify(action === "test" ? { urls: urls() } : { feeds: calendars() })
     configProcess.command = [pluginDir + "/next_event.py", "--feeds-" + action]
     configProcess.running = true
   }
@@ -93,7 +104,8 @@ KeyboardPanel {
     try {
       var result = JSON.parse(String(output || "{}"))
       if (action === "save" && result.status === "ok") {
-        saved()
+        if (!Array.isArray(result.calendars)) throw new Error("Invalid saved calendar settings")
+        saved(result.calendars)
         if (!pendingRead) dismiss()
         return
       }
@@ -103,12 +115,16 @@ KeyboardPanel {
         return
       }
       if (action === "read") {
-        var values = result.urls
-        if (!Array.isArray(values) || values.some(function(value) { return typeof value !== "string" })) {
+        var values = result.feeds
+        if (!Array.isArray(values) || values.some(function(value) {
+          return !value || typeof value.id !== "string" || typeof value.name !== "string"
+            || typeof value.url !== "string" || typeof value.hideTitles !== "boolean"
+        })) {
           throw new Error("Invalid feed settings")
         }
         feeds.clear()
-        for (var i = 0; i < values.length; i++) feeds.append({ url: values[i], feedback: "", connected: false })
+        for (var i = 0; i < values.length; i++) feeds.append({ calendarId: values[i].id,
+          name: values[i].name, url: values[i].url, hideTitles: values[i].hideTitles, feedback: "", connected: false })
         feedsLoaded = true
         message = ""
         if (feeds.count === 0) addFeed()
@@ -192,7 +208,7 @@ KeyboardPanel {
 
         Text {
           textFormat: Text.PlainText
-          text: "Read-only ICS subscription links. Secret links grant calendar read access; treat them as passwords. Saved locally with owner-only permissions."
+          text: "Read-only ICS subscription links. Secret links grant calendar read access; treat them as passwords. Saved locally with owner-only permissions. Calendar names stay visible when event titles are hidden; choose non-sensitive names."
           color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall
@@ -227,6 +243,9 @@ KeyboardPanel {
             id: feedRow
             required property int index
             required property string url
+            required property string calendarId
+            required property string name
+            required property bool hideTitles
             required property string feedback
             required property bool connected
             property alias input: urlInput
@@ -239,6 +258,38 @@ KeyboardPanel {
               color: Commons.Color.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.bodySmall
+            }
+
+            TextField {
+              id: nameInput
+              width: parent.width
+              text: feedRow.name
+              placeholderText: "Calendar name"
+              maximumLength: 40
+              enabled: !root.busy && root.feedsLoaded
+              Accessible.name: "Calendar name " + (feedRow.index + 1)
+              onTextEdited: {
+                feeds.setProperty(feedRow.index, "name", text)
+                root.message = ""
+              }
+              onActiveFocusChanged: if (activeFocus) root.ensureVisible(feedRow)
+            }
+
+            Button {
+              id: privacyButton
+              text: "Hide event titles: " + (feedRow.hideTitles ? "on" : "off")
+              selected: feedRow.hideTitles
+              focusable: true
+              enabled: !root.busy && root.feedsLoaded
+              Accessible.role: Accessible.CheckBox
+              Accessible.name: "Hide event titles for " + feedRow.name
+              Accessible.checked: feedRow.hideTitles
+              Accessible.onPressAction: clicked()
+              onClicked: {
+                feeds.setProperty(feedRow.index, "hideTitles", !feedRow.hideTitles)
+                root.message = ""
+              }
+              onActiveFocusChanged: if (activeFocus) root.ensureVisible(feedRow)
             }
 
             Row {

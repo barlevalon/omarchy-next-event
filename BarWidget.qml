@@ -13,6 +13,11 @@ BarWidget {
   readonly property string notificationCommand: Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-notification-send"
   property var eventData: null
   property var eventsData: []
+  property var calendarsData: []
+  property int configGeneration: 0
+  property string privacyError: ""
+  readonly property bool privacySaving: privacyProcess.running
+  readonly property bool editingFeeds: feedSettings.open || feedSettings.busy
   property bool popupOpen: false
   property string selectedKey: ""
   readonly property var selectedEvent: overlapEvents.find(function(event) { return eventKey(event) === selectedKey }) || null
@@ -22,8 +27,11 @@ BarWidget {
   property bool refreshPending: false
   property bool mounted: false
   readonly property bool updateOwner: mounted && peerWidgets()[0] === root
-  readonly property bool privacyMode: setting("privacyMode", true) !== false
-  readonly property string privacyHint: "Right-click: turn privacy " + (privacyMode ? "off" : "on") + "\nMiddle-click: calendar feeds"
+  readonly property bool privacyMode: titlesHidden(eventData)
+  readonly property string privacyHint: (privacyError ? privacyError + "\n" : "")
+    + (status === "ok" && eventData ? "Right-click: " + (privacyMode ? "reveal" : "hide")
+      + " titles for " + calendarFor(eventData).name + "\n" : "")
+    + "Middle-click: calendar feeds"
 
   Component.onCompleted: {
     mounted = true
@@ -42,14 +50,24 @@ BarWidget {
     }
   }
 
-  onPrivacyModeChanged: if (bar) bar.hideTooltip(button)
+  onCalendarsDataChanged: if (bar) bar.hideTooltip(button)
+
+  function calendarFor(event) {
+    return calendarsData.find(function(calendar) { return event && calendar.id === event.calendarId })
+      || { name: "Calendar", hideTitles: true }
+  }
+
+  function titlesHidden(event) {
+    return calendarFor(event).hideTitles !== false
+  }
 
   function eventTitle(event) {
-    return privacyMode ? "Private event" : String(event.title || "Untitled")
+    return calendarFor(event).name + " · "
+      + (titlesHidden(event) ? "Private event" : String(event.title || "Untitled"))
   }
 
   function eventChoiceTitle(event, index) {
-    return eventTitle(event) + (privacyMode ? " " + (index + 1) : "")
+    return eventTitle(event) + (titlesHidden(event) ? " " + (index + 1) : "")
   }
 
   function eventTiming(event) {
@@ -87,6 +105,7 @@ BarWidget {
   }
 
   function openFeedSettings() {
+    if (peerWidgets().some(function(widget) { return widget.privacySaving })) return
     closePicker()
     feedSettings.show()
   }
@@ -99,9 +118,49 @@ BarWidget {
   }
 
   function togglePrivacy() {
-    if (!bar || !bar.shell) return
-    var next = Object.assign({}, settings, { privacyMode: !privacyMode })
-    bar.shell.updateEntryInline(moduleName, next)
+    if (status !== "ok" || !eventData || !eventData.calendarId) return
+    var peers = peerWidgets()
+    if (peers.some(function(widget) { return widget.editingFeeds })) {
+      privacyError = "Close calendar settings before toggling title privacy."
+      return
+    }
+    peers[0].savePrivacy(eventData.calendarId, !titlesHidden(eventData))
+  }
+
+  function savePrivacy(calendarId, hidden) {
+    if (privacyProcess.running) return
+    privacyError = ""
+    privacyProcess.payload = JSON.stringify({ calendarId: calendarId, hideTitles: hidden })
+    privacyProcess.running = true
+  }
+
+  function applyPrivacyResult(output) {
+    try {
+      var result = JSON.parse(String(output || "{}"))
+      if (result.status !== "ok" || !Array.isArray(result.calendars)) throw new Error("Privacy save failed")
+      peerWidgets()[0].updateCalendars(result.calendars)
+    } catch (error) {
+      var widgets = peerWidgets()
+      for (var j = 0; j < widgets.length; j++) widgets[j].privacyError = "Calendar privacy could not be saved. Try again."
+    }
+  }
+
+  function updateCalendars(calendars) {
+    var peers = peerWidgets()
+    var generation = configGeneration + 1
+    for (var i = 0; i < peers.length; i++) {
+      peers[i].configGeneration = generation
+      peers[i].calendarsData = calendars
+      peers[i].privacyError = ""
+    }
+    // A fetch started before this save must not restore stale calendar preferences.
+    if (fetchProcess.running) refreshPending = true
+  }
+
+  function feedsSaved(calendars) {
+    var owner = peerWidgets()[0]
+    owner.updateCalendars(calendars)
+    owner.refresh()
   }
 
   readonly property string label: {
@@ -117,7 +176,7 @@ BarWidget {
 
   readonly property string details: {
     if (status === "setup") return "Calendar setup required\nLeft-click: add calendar feeds\n" + privacyHint
-    if (errorText !== "") return (privacyMode ? "Calendar unavailable" : errorText) + "\n" + privacyHint
+    if (errorText !== "") return "Calendar unavailable" + "\n" + privacyHint
     if (!eventData) return "No more timed events today\nLeft-click: calendar feeds\n" + privacyHint
     if (overlapEvents.length > 1) {
       return overlapEvents.map(function(event, index) {
@@ -147,10 +206,13 @@ BarWidget {
     errorText = owner.errorText
     eventData = owner.eventData
     eventsData = owner.eventsData
+    calendarsData = owner.calendarsData
+    privacyError = owner.privacyError
+    configGeneration = owner.configGeneration
   }
 
   function distributeResult(output) {
-    if (!updateOwner) return
+    if (!updateOwner || fetchProcess.generation !== configGeneration) return
     var peers = peerWidgets()
     for (var i = 0; i < peers.length; i++) {
       peers[i].notified = notified
@@ -178,21 +240,24 @@ BarWidget {
       status = String(result.status || "error")
       errorText = String(result.error || "")
       if (status === "ok") {
+        calendarsData = Array.isArray(result.calendars) ? result.calendars : []
         eventData = result.event || null
         eventsData = result.events || (eventData ? [eventData] : [])
       } else {
+        eventData = null
         eventsData = []
       }
     } catch (error) {
       status = "error"
       errorText = "Calendar response was invalid"
+      eventData = null
       eventsData = []
     }
     checkNotifications()
   }
 
   function eventKey(event) {
-    return [event.start, event.end, event.title, event.meetingUrl].join("\n")
+    return [event.calendarId, event.start, event.end, event.title, event.meetingUrl].join("\n")
   }
 
   function sendNotification(event, starting) {
@@ -201,13 +266,13 @@ BarWidget {
     var headline = starting ? "Event starting now" : "Event in " + minutes + " minutes"
     var body = eventTitle(event) + " · " + Qt.formatTime(start, "HH:mm")
     var command = [notificationCommand, "--app-name", "Calendar", "-u", "normal", "-g", "\uf133", headline, body]
-    if (!privacyMode && event.meetingUrl) command = command.concat(["--exec", "xdg-open", String(event.meetingUrl)])
+    if (!titlesHidden(event) && event.meetingUrl) command = command.concat(["--exec", "xdg-open", String(event.meetingUrl)])
     Quickshell.execDetached(command)
   }
 
   function checkNotifications() {
     notificationTimer.stop()
-    if (!updateOwner) return
+    if (!updateOwner || privacySaving) return
     var now = Date.now()
     var nextAt = Infinity
 
@@ -246,7 +311,9 @@ BarWidget {
 
   Process {
     id: fetchProcess
+    property int generation: 0
     command: [root.pluginDir + "/next_event.py"]
+    onStarted: generation = root.configGeneration
     onExited: function(exitCode) {
       if (exitCode !== 0 && root.updateOwner) {
         root.distributeResult(JSON.stringify({ status: "error", error: "Calendar refresh failed" }))
@@ -261,6 +328,26 @@ BarWidget {
       waitForEnd: true
       onStreamFinished: root.distributeResult(text)
     }
+  }
+
+  Process {
+    id: privacyProcess
+    property string payload: ""
+    command: [root.pluginDir + "/next_event.py", "--feeds-privacy"]
+    stdinEnabled: true
+    onStarted: {
+      write(payload + "\n")
+      payload = ""
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.privacyError = "Calendar privacy could not be saved. Try again."
+      root.checkNotifications()
+    }
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyPrivacyResult(text)
+    }
+    stderr: StdioCollector { waitForEnd: true }
   }
 
   Process {
@@ -286,7 +373,7 @@ BarWidget {
     bar: root.bar
     owner: root
     pluginDir: root.pluginDir
-    onSaved: root.refresh()
+    onSaved: function(calendars) { root.feedsSaved(calendars) }
     onRefreshRequested: root.refresh()
   }
 
@@ -322,7 +409,7 @@ BarWidget {
 
         Text {
           textFormat: Text.PlainText
-          text: "Choose an event, then join." + (root.privacyMode ? " Titles hidden." : "")
+          text: "Choose an event, then join."
           color: Commons.Color.foreground
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall
